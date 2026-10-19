@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>The Last Pixel — 10 Levels — Teekay & Omnia</title>
+<style>
+:root{color-scheme:dark}*{box-sizing:border-box}html,body{margin:0;background:#080d16;color:#e9f4ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif;min-height:100%;overscroll-behavior:none}body{display:grid;place-items:center;padding:12px}#game{width:min(920px,100%);background:#0c1321;border:1px solid #33465d;border-radius:17px;overflow:hidden;box-shadow:0 15px 65px #000a}header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 17px;background:#121e30;border-bottom:1px solid #344258}header strong{font-size:clamp(16px,2.6vw,23px);letter-spacing:.16em;color:#b9ffe2}header small{display:block;color:#91a8c2;font-size:11px;margin-top:2px;letter-spacing:.14em}.hud{display:flex;gap:clamp(8px,2.5vw,24px);align-items:center}.stat{text-align:center;min-width:45px}.stat span{font-size:10px;letter-spacing:.09em;white-space:nowrap;color:#9db1c9}.stat b{display:block;font-size:clamp(18px,3vw,25px);font-variant-numeric:tabular-nums}.enemy{color:#ff596d}.life{color:#5df9be}canvas{display:block;width:100%;aspect-ratio:16/9;background:#070b12;touch-action:none}#bottom{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px 17px;background:#121e30;border-top:1px solid #344258}#bottom p{margin:0;color:#adc0d5;font-size:12px;line-height:1.5}button{border:1px solid #5b7e8d;background:#263d4b;color:#f1fbff;border-radius:9px;padding:10px 13px;font-weight:700;cursor:pointer;touch-action:none}button:active{transform:scale(.96)}button.main{background:#42d7a0;color:#061511;border-color:#42d7a0}#touch{position:relative;width:126px;height:126px;flex:none;border-radius:50%;border:2px solid #6b94a9;background:radial-gradient(circle,#233c50,#101d2c);touch-action:none;user-select:none;margin-left:auto;cursor:crosshair}
+#stick{position:absolute;width:49px;height:49px;border-radius:50%;left:calc(50% - 24.5px);top:calc(50% - 24.5px);background:radial-gradient(circle at 35% 30%,#b8ffe8,#319a8c);border:2px solid #a5ffe0;box-shadow:0 0 15px #39dbb655;pointer-events:none;transform:translate(0,0)}
+#touch:after{content:"";position:absolute;inset:10px;border:1px dashed #5d8795;border-radius:50%;pointer-events:none}.credits{font-size:10px;letter-spacing:.12em;color:#6f859e;padding:0 17px 10px;background:#121e30}@media(min-width:850px) and (pointer:fine){#touch{opacity:.7}}@media(max-width:560px){body{padding:0}#game{border-radius:0;border:none}header{padding:10px}.stat span{font-size:8px}.hud{gap:8px}#bottom{padding:9px}#bottom p{max-width:155px}#touch{width:116px;height:116px}}
+</style>
+</head>
+<body><div id="game">
+<header><div><strong>THE LAST PIXEL</strong><small>10 LEVELS · AUTO-SHOOT</small></div><div class="hud"><div class="stat"><span>LEVEL</span><b id="lv">01</b></div><div class="stat"><span>ENEMIES</span><b class="enemy" id="leftCount">50</b></div><div class="stat"><span>LIVES</span><b class="life" id="lives">♥♥♥</b></div></div></header>
+<canvas id="screen" width="800" height="450" aria-label="The Last Pixel game"></canvas>
+<div id="bottom"><p>Move: WASD / ZQSD / arrows / joystick<br>Auto-shoot in the direction you move.</p><div id="touch" aria-label="8-direction analog joystick"><div id="stick"></div></div><div style="display:grid;gap:6px"><button class="main" id="action">START GAME</button><select id="levelSelect" aria-label="Test a level" style="background:#243d55;color:#fff;padding:9px;border:1px solid #597b96;border-radius:8px"><option value="1">TEST LEVEL 1</option><option value="2">TEST LEVEL 2</option><option value="3">TEST LEVEL 3</option><option value="4">TEST LEVEL 4</option><option value="5">TEST LEVEL 5</option><option value="6">TEST LEVEL 6</option><option value="7">TEST LEVEL 7</option><option value="8">TEST LEVEL 8</option><option value="9">TEST LEVEL 9</option><option value="10">TEST LEVEL 10</option></select><button id="testLevel" style="background:#345a86;color:white;font-size:12px">TEST SELECTED</button></div></div>
+<div class="credits">TEEKAY & OMNIA 2026 · EVERY PIXEL COUNTS</div></div>
+<div id="weaponMode" style="text-align:center;color:#73ffd1;font:700 13px monospace;padding:6px;background:#101b2a">SINGLE FIRE →</div>
+<script>
+(()=>{'use strict';
+const C=document.getElementById('screen'),g=C.getContext('2d');const CW=800,CH=450;
+const lvEl=document.getElementById('lv'),ctEl=document.getElementById('leftCount'),lifeEl=document.getElementById('lives'),act=document.getElementById('action');
+const key={up:false,down:false,left:false,right:false};let joyX=0,joyY=0;let state='intro',level=1,blue=[],red=[],shots=[],enemyShots=[],sparks=[],obstacles=[],player,last=0,fire=0,finish=0,elapsed=0,blasterFlash=0,waveQueue=0,waveTimer=0;
+const TOTAL_LEVELS=10, counts=l=>50+(l-1)*25;
+const rand=(a,b)=>a+Math.random()*(b-a), clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function updateHUD(){document.getElementById('weaponMode').textContent=level>=10?'QUAD FIRE + BLASTER ▰':level>=3?'QUAD FIRE ✣':level>=2?'DUAL FIRE ↔':'SINGLE FIRE →';lvEl.textContent=String(level).padStart(2,'0');ctEl.textContent=red.length+blue.length+waveQueue;lifeEl.textContent='♥'.repeat(player?player.hp:3)+'♡'.repeat(3-(player?player.hp:3));}
+function hitWall(x,y,r=5){return obstacles.some(o=>x+r>o.x&&x-r<o.x+o.w&&y+r>o.y&&y-r<o.y+o.h)}
+function moveFree(obj,dx,dy,r){if(!hitWall(obj.x+dx,obj.y,r))obj.x+=dx;if(!hitWall(obj.x,obj.y+dy,r))obj.y+=dy;}
+function makeWalls(l){obstacles=[];if(l<2)return;
+ if(l===7){ // Open corridors: the maze has no sealed rooms.
+ obstacles=[{x:160,y:0,w:18,h:155},{x:160,y:240,w:18,h:210},{x:325,y:90,w:18,h:270},{x:485,y:0,w:18,h:170},{x:485,y:260,w:18,h:190},{x:645,y:95,w:18,h:260}];return;}
+ if(l===9){obstacles=[{x:200,y:75,w:18,h:300},{x:580,y:75,w:18,h:300},{x:200,y:75,w:165,h:18},{x:435,y:75,w:163,h:18},{x:200,y:357,w:165,h:18},{x:435,y:357,w:163,h:18}];return;}
+ if(l===10){obstacles=[{x:190,y:85,w:18,h:115},{x:190,y:270,w:18,h:95},{x:585,y:85,w:18,h:115},{x:585,y:270,w:18,h:95},{x:345,y:0,w:20,h:105},{x:435,y:345,w:20,h:105}];return;}
+
+ const patterns=[
+ [{x:185,y:100,w:22,h:115},{x:590,y:235,w:22,h:115}],
+ [{x:175,y:95,w:130,h:20},{x:495,y:335,w:130,h:20},{x:390,y:55,w:20,h:90}],
+ [{x:190,y:105,w:20,h:125},{x:590,y:225,w:20,h:125},{x:310,y:355,w:180,h:18}],
+ [{x:155,y:90,w:120,h:18},{x:525,y:340,w:120,h:18},{x:155,y:340,w:120,h:18},{x:525,y:90,w:120,h:18}]
+ ];obstacles=patterns[(l-2)%patterns.length].map(o=>({...o}));}
+// Shortest-path flow field: every red pixel can find a route around walls.
+const CELL=10,COLS=80,ROWS=45;let distances=new Int16Array(COLS*ROWS),navClock=0;
+function navIndex(x,y){return clamp(Math.floor(y/CELL),0,ROWS-1)*COLS+clamp(Math.floor(x/CELL),0,COLS-1)}
+function rebuildPaths(){
+ distances.fill(-1);
+ const start=navIndex(player.x,player.y),queue=new Int32Array(COLS*ROWS);
+ let head=0,tail=0;distances[start]=0;queue[tail++]=start;
+ while(head<tail){const a=queue[head++],cx=a%COLS,cy=(a/COLS)|0;
+ for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+ const nx=cx+dx,ny=cy+dy;if(nx<0||ny<0||nx>=COLS||ny>=ROWS)continue;
+ const b=ny*COLS+nx;if(distances[b]>=0||hitWall(nx*CELL+5,ny*CELL+5,6))continue;
+ distances[b]=distances[a]+1;queue[tail++]=b;
+ }}}
+function pathDirection(e){
+ const d=Math.hypot(player.x-e.x,player.y-e.y)||1;
+ // Direct attraction is used whenever the straight route is unobstructed.
+ let clear=true;for(let t=10;t<d;t+=8){if(hitWall(e.x+(player.x-e.x)*t/d,e.y+(player.y-e.y)*t/d,6)){clear=false;break}}
+ if(clear)return [(player.x-e.x)/d,(player.y-e.y)/d];
+ const cx=clamp(Math.floor(e.x/CELL),0,COLS-1),cy=clamp(Math.floor(e.y/CELL),0,ROWS-1);
+ let best=Infinity,tx=e.x,ty=e.y;
+ for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+ const nx=cx+dx,ny=cy+dy;if(nx<0||ny<0||nx>=COLS||ny>=ROWS)continue;
+ const dist=distances[ny*COLS+nx];if(dist>=0&&dist<best&&!hitWall(nx*CELL+5,ny*CELL+5,6)){
+ best=dist;tx=nx*CELL+5;ty=ny*CELL+5;
+ }}
+ if(best===Infinity)return [(player.x-e.x)/d,(player.y-e.y)/d];
+ const m=Math.hypot(tx-e.x,ty-e.y)||1;return [(tx-e.x)/m,(ty-e.y)/m];
+}
+// Blue enemies use obstacle-corner waypoints instead of the smaller red-pixel grid.
+function blueClear(a,b){
+ const d=Math.hypot(b.x-a.x,b.y-a.y);const steps=Math.ceil(d/5);
+ for(let i=0;i<=steps;i++){const t=i/Math.max(steps,1);if(hitWall(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t,12))return false;}
+ return true;
+}
+function blueDirection(b){
+ const target={x:player.x,y:player.y};
+ if(blueClear(b,target)){const d=Math.hypot(target.x-b.x,target.y-b.y)||1;return [(target.x-b.x)/d,(target.y-b.y)/d];}
+ const nodes=[{x:b.x,y:b.y},target];
+ for(const w of obstacles){const pad=17;for(const [x,y] of [[w.x-pad,w.y-pad],[w.x+w.w+pad,w.y-pad],[w.x-pad,w.y+w.h+pad],[w.x+w.w+pad,w.y+w.h+pad]]){
+ if(x>=14&&x<=CW-14&&y>=14&&y<=CH-14&&!hitWall(x,y,12))nodes.push({x,y});
+ }}
+ const n=nodes.length,dist=Array(n).fill(Infinity),prev=Array(n).fill(-1),used=Array(n).fill(false);dist[0]=0;
+ for(let k=0;k<n;k++){let u=-1;for(let i=0;i<n;i++)if(!used[i]&&(u<0||dist[i]<dist[u]))u=i;
+ if(u<0||dist[u]===Infinity||u===1)break;used[u]=true;
+ for(let v=1;v<n;v++)if(!used[v]&&blueClear(nodes[u],nodes[v])){const nd=dist[u]+Math.hypot(nodes[u].x-nodes[v].x,nodes[u].y-nodes[v].y);if(nd<dist[v]){dist[v]=nd;prev[v]=u;}}
+ }
+ if(prev[1]<0)return [0,0];let next=1;while(prev[next]>0)next=prev[next];
+ const d=Math.hypot(nodes[next].x-b.x,nodes[next].y-b.y)||1;
+ return [(nodes[next].x-b.x)/d,(nodes[next].y-b.y)/d];
+}
+let blueDist=new Int16Array(COLS*ROWS);
+function rebuildBluePaths(){
+ blueDist.fill(-1);const q=new Int32Array(COLS*ROWS),start=navIndex(player.x,player.y);let head=0,tail=0;
+ blueDist[start]=0;q[tail++]=start;
+ while(head<tail){let a=q[head++],cx=a%COLS,cy=(a/COLS)|0;
+ for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+ const nx=cx+dx,ny=cy+dy;if(nx<2||ny<2||nx>=COLS-2||ny>=ROWS-2)continue;
+ const b=ny*COLS+nx;if(blueDist[b]>=0||hitWall(nx*CELL+5,ny*CELL+5,12))continue;
+ blueDist[b]=blueDist[a]+1;q[tail++]=b;
+ }}
+}
+function blueNav(b){
+ if(blueClear(b,player))return blueDirection(b);
+ const cx=clamp(Math.floor(b.x/CELL),1,COLS-2),cy=clamp(Math.floor(b.y/CELL),1,ROWS-2);
+ let best=Infinity,target=null;
+ for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+ let nx=cx+dx,ny=cy+dy,d=blueDist[ny*COLS+nx];
+ if(d>=0&&d<best&&!hitWall(nx*CELL+5,ny*CELL+5,12)){best=d;target={x:nx*CELL+5,y:ny*CELL+5};}}
+ if(!target)return blueDirection(b);
+ const m=Math.hypot(target.x-b.x,target.y-b.y)||1;return [(target.x-b.x)/m,(target.y-b.y)/m];
+}
+function spawnRed(n,edge=false){for(let i=0;i<n;i++){
+ let x,y,t=0;do{if(edge){const side=Math.floor(rand(0,4));x=side===0?15:side===1?CW-15:rand(15,CW-15);y=side===2?15:side===3?CH-15:rand(15,CH-15);}else{x=rand(12,CW-12);y=rand(12,CH-12);}t++}
+ while((Math.hypot(x-player.x,y-player.y)<110||hitWall(x,y,9))&&t<300);
+ if(!hitWall(x,y,9))red.push({x,y,v:rand(.35,.85)+level*.07,phase:rand(0,6.3),type:Math.random()<.15?'hunter':'drift',r:5.5});}}
+function spawnBlue(n){for(let i=0;i<n;i++){let x,y,t=0;do{x=rand(30,CW-30);y=rand(30,CH-30);t++}while((Math.hypot(x-player.x,y-player.y)<145||hitWall(x,y,18)||blue.some(b=>Math.hypot(b.x-x,b.y-y)<45))&&t<350);
+ if(!hitWall(x,y,18))blue.push({x,y,v:rand(.4,.8)+level*.07,phase:rand(0,6.3),cells:[true,true,true,true],shotTimer:rand(2.5,5.5)});}}
+function fireBlaster(){blasterFlash=.14;
+ const dx=player.dx,dy=player.dy,px=-dy,py=dx;
+ // Four parallel, short-lived lanes, in front of the player.
+ for(const offset of [-12,-4,4,12]){
+  const ox=player.x+px*offset,oy=player.y+py*offset;
+  shots.push({x:ox+dx*16,y:oy+dy*16,vx:dx*485,vy:dy*485,life:1.7,blast:true});
+ }}
+function fresh(l){level=l;player={x:CW/2,y:CH/2,hp:3,inv:1.6,dx:1,dy:0};red=[];blue=[];shots=[];enemyShots=[];sparks=[];fire=0;elapsed=0;blasterFlash=0;waveQueue=0;waveTimer=0;makeWalls(l);navClock=0;
+ if(l===8){spawnRed(70);waveQueue=counts(l)-70;waveTimer=5;}else{spawnRed(counts(l));}
+ if(l>=4)spawnBlue(l===4?3:l===5?6:l===6?6:l===7?6:l===8?8:l===9?10:12);
+ updateHUD();}
+function reset(){fresh(1);state='playing';act.textContent='RESTART';}
+function advance(){if(level>=TOTAL_LEVELS){state='victory';act.textContent='PLAY AGAIN';}else{fresh(level+1);state='playing';act.textContent='RESTART';}}
+function sparksAt(x,y,color='#ff6175',n=7){for(let i=0;i<n;i++){const a=rand(0,Math.PI*2),s=rand(35,145);sparks.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:rand(.2,.5),full:.5,color});}}
+function tick(dt){if(state!=='playing')return;elapsed+=dt;player.inv=Math.max(0,player.inv-dt);finish=0;
+ let x=(key.right?1:0)-(key.left?1:0)+joyX,y=(key.down?1:0)-(key.up?1:0)+joyY;const mag=Math.hypot(x,y);
+ if(mag){x/=mag;y/=mag;player.dx=x;player.dy=y;moveFree(player,x*51.25*dt,y*51.25*dt,7);player.x=clamp(player.x,7,CW-7);player.y=clamp(player.y,7,CH-7);fire-=dt;
+ if(fire<=0){
+ shots.push({x:player.x+player.dx*11,y:player.y+player.dy*11,vx:player.dx*485,vy:player.dy*485,life:1.7});
+ if(level>=2)shots.push({x:player.x-player.dx*11,y:player.y-player.dy*11,vx:-player.dx*485,vy:-player.dy*485,life:1.7});
+ if(level>=3){shots.push({x:player.x-player.dy*11,y:player.y+player.dx*11,vx:-player.dy*485,vy:player.dx*485,life:1.7});shots.push({x:player.x+player.dy*11,y:player.y-player.dx*11,vx:player.dy*485,vy:-player.dx*485,life:1.7});}
+ if(level>=10)fireBlaster();
+ fire=.105;}}
+ else{fire=Math.min(fire,.04);}
+ for(let i=shots.length-1;i>=0;i--){const s=shots[i];s.x+=s.vx*dt;s.y+=s.vy*dt;s.life-=dt;if(hitWall(s.x,s.y,3)){shots.splice(i,1);continue;}if(s.life<0||s.x<0||s.x>CW||s.y<0||s.y>CH){shots.splice(i,1);continue;}
+ let hit=false;
+ for(let j=blue.length-1;j>=0;j--){const b=blue[j];const slots=[[-9,-9],[1,-9],[-9,1],[1,1]];for(let k=0;k<4;k++){if(!b.cells[k])continue;const [ox,oy]=slots[k];if(s.x>b.x+ox-3&&s.x<b.x+ox+13&&s.y>b.y+oy-3&&s.y<b.y+oy+13){b.cells[k]=false;sparksAt(b.x+ox+5,b.y+oy+5,'#48aaff',9);shots.splice(i,1);hit=true;if(!b.cells.some(Boolean))blue.splice(j,1);break;}}if(hit)break;}
+ if(hit)continue;
+ for(let j=red.length-1;j>=0;j--){let e=red[j];if((s.x-e.x)**2+(s.y-e.y)**2<115){sparksAt(e.x,e.y);red.splice(j,1);shots.splice(i,1);hit=true;break;}}if(hit)continue;}
+ navClock-=dt;if(navClock<=0){rebuildPaths();rebuildBluePaths();navClock=.15;}
+ blasterFlash=Math.max(0,blasterFlash-dt);
+ if(level===8&&waveQueue>0){waveTimer-=dt;if(waveTimer<=0){const n=Math.min(35,waveQueue);spawnRed(n,true);waveQueue-=n;waveTimer=6;}}
+ for(let i=enemyShots.length-1;i>=0;i--){const s=enemyShots[i];s.x+=s.vx*dt;s.y+=s.vy*dt;s.life-=dt;
+ if(s.life<=0||s.x<5||s.x>CW-5||s.y<5||s.y>CH-5||hitWall(s.x,s.y,4)){enemyShots.splice(i,1);continue;}
+ if(player.inv<=0&&Math.hypot(s.x-player.x,s.y-player.y)<11){enemyShots.splice(i,1);player.hp--;player.inv=1.8;sparksAt(player.x,player.y,'#59ffc5',14);if(player.hp<=0){state='gameover';act.textContent='TRY AGAIN';break;}}
+ }
+ for(const b of blue){const [vx,vy]=blueNav(b),v=9+b.v*10;
+ if(level>=6){b.shotTimer-=dt;if(b.shotTimer<=0){const dd=Math.hypot(player.x-b.x,player.y-b.y)||1;
+ // Deliberately very slow projectiles, easily visible and avoidable.
+ enemyShots.push({x:b.x,y:b.y,vx:(player.x-b.x)/dd*24,vy:(player.y-b.y)/dd*24,life:12});
+ b.shotTimer=rand(4.2,7.0);}}moveFree(b,vx*v*dt,vy*v*dt,12);b.x=clamp(b.x,14,CW-14);b.y=clamp(b.y,14,CH-14);if(player.inv<=0&&Math.hypot(player.x-b.x,player.y-b.y)<21){player.hp--;player.inv=1.8;sparksAt(player.x,player.y,'#59ffc5',16);if(player.hp<=0){state='gameover';act.textContent='TRY AGAIN';break;}}}
+ for(const e of red){e.phase+=dt*(e.type==='hunter'?1.6:.9);const d=Math.hypot(player.x-e.x,player.y-e.y)||1;const [vx,vy]=pathDirection(e);
+const v=9+e.v*10;moveFree(e,vx*v*dt,vy*v*dt,5);
+ e.x=clamp(e.x,6,CW-6);e.y=clamp(e.y,6,CH-6);
+ if(player.inv<=0&&d<12){player.hp--;player.inv=1.8;sparksAt(player.x,player.y,'#59ffc5',16);updateHUD();if(player.hp<=0){state='gameover';act.textContent='TRY AGAIN';break;}}}
+ for(let i=sparks.length-1;i>=0;i--){let s=sparks[i];s.x+=s.vx*dt;s.y+=s.vy*dt;s.t-=dt;if(s.t<=0)sparks.splice(i,1);}
+ if(red.length===0&&blue.length===0&&waveQueue===0&&state==='playing'){state='clear';finish=1.1;act.textContent=level===TOTAL_LEVELS?'FINISH GAME':'NEXT LEVEL';}updateHUD();}
+function draw(t){g.fillStyle='#070c15';g.fillRect(0,0,CW,CH);g.strokeStyle='#182639';g.lineWidth=.8;g.beginPath();for(let x=0;x<=CW;x+=20){g.moveTo(x,0);g.lineTo(x,CH);}for(let y=0;y<=CH;y+=20){g.moveTo(0,y);g.lineTo(CW,y);}g.stroke();
+ g.strokeStyle='#35516b';g.lineWidth=3;g.strokeRect(3,3,CW-6,CH-6);
+ for(const o of obstacles){g.fillStyle='#28364a';g.fillRect(o.x,o.y,o.w,o.h);g.strokeStyle='#88a3bb';g.lineWidth=2;g.strokeRect(o.x+1,o.y+1,o.w-2,o.h-2);}
+ for(const b of blue){const slots=[[-9,-9],[1,-9],[-9,1],[1,1]];g.shadowColor='#388eff';g.shadowBlur=11;for(let k=0;k<4;k++)if(b.cells[k]){g.fillStyle='#48aaff';g.fillRect(b.x+slots[k][0],b.y+slots[k][1],10,10);}g.shadowBlur=0;}
+ for(const e of red){g.fillStyle=e.type==='hunter'?'#ff324c':'#db4557';g.shadowColor='#f43450';g.shadowBlur=8;g.fillRect(e.x-4.5,e.y-4.5,9,9);}g.shadowBlur=0;
+ for(const s of shots){g.fillStyle=s.blast?'#b6fff3':'#8dffe2';g.fillRect(s.x-(s.blast?4:3),s.y-(s.blast?4:3),s.blast?8:6,s.blast?8:6);}
+ for(const s of enemyShots){g.fillStyle='#ffbd65';g.shadowColor='#ff9b38';g.shadowBlur=11;g.fillRect(s.x-5,s.y-5,10,10);}g.shadowBlur=0;
+ if(level===10&&blasterFlash>0&&state==='playing'){
+ g.save();g.globalAlpha=blasterFlash/.14*.25;g.strokeStyle='#72ffe0';g.lineWidth=34;g.beginPath();g.moveTo(player.x+player.dx*13,player.y+player.dy*13);g.lineTo(player.x+player.dx*150,player.y+player.dy*150);g.stroke();g.restore();}
+
+ for(const s of sparks){g.globalAlpha=clamp(s.t/s.full,0,1);g.fillStyle=s.color;g.fillRect(s.x-2,s.y-2,4,4);}g.globalAlpha=1;
+ if(player && (player.inv<=0 || Math.floor(t*13)%2===0)){g.shadowColor='#51ffc1';g.shadowBlur=20;g.fillStyle='#55ffd0';g.fillRect(player.x-6,player.y-6,12,12);g.shadowBlur=0;}
+ if(state!=='playing'){g.fillStyle='#040810ca';g.fillRect(0,0,CW,CH);g.textAlign='center';g.textBaseline='middle';
+ let title='',line='',color='#72ffd0';
+ if(state==='intro'){title='THE LAST PIXEL';line='ELIMINATE EVERY RED PIXEL TO WIN';}
+ if(state==='clear'){title='LEVEL COMPLETE!';line='ALL ENEMIES ELIMINATED';}if(state==='gameover'){title='GAME OVER';line=`LEVEL ${level} · TRY AGAIN`;color='#ff6272';}
+ if(state==='victory'){title='CONGRATULATIONS!';line='YOU SAVED THE LAST PIXEL · ALL 10 LEVELS COMPLETED';}
+ g.shadowColor=color;g.shadowBlur=13;g.fillStyle=color;g.font='bold 36px monospace';g.fillText(title,CW/2,CH/2-43);g.shadowBlur=0;g.fillStyle='#cad7e5';g.font='17px monospace';g.fillText(line,CW/2,CH/2+5);
+ g.fillStyle='#90a6bd';g.font='14px monospace';g.fillText(state==='intro'?'START TO PLAY':state==='clear'?'NEXT LEVEL IS READY':state==='victory'?'TEEKAY & OMNIA 2026' :'YOU STILL HAVE A CHANCE',CW/2,CH/2+43);}
+}
+function loop(ts){const dt=Math.min((ts-last)/1000||0,.033);last=ts;tick(dt);draw(ts/1000);requestAnimationFrame(loop);}requestAnimationFrame(loop);
+document.getElementById('testLevel').addEventListener('click',()=>{fresh(Number(document.getElementById('levelSelect').value));state='playing';act.textContent='RESTART';});
+act.addEventListener('click',()=>{if(state==='intro'||state==='gameover'||state==='victory'||state==='playing')reset();else if(state==='clear')advance();});
+const mapping={ArrowUp:'up',KeyW:'up',KeyZ:'up',ArrowDown:'down',KeyS:'down',ArrowLeft:'left',KeyA:'left',KeyQ:'left',ArrowRight:'right',KeyD:'right'};
+addEventListener('keydown',e=>{const k=mapping[e.code];if(k){e.preventDefault();key[k]=true;}if(e.code==='Space'||e.code==='Enter'){if(state!=='playing'){e.preventDefault();act.click();}}});
+addEventListener('keyup',e=>{const k=mapping[e.code];if(k){e.preventDefault();key[k]=false;}});addEventListener('blur',()=>{Object.keys(key).forEach(k=>key[k]=false);});
+const joy=document.getElementById('touch'),stick=document.getElementById('stick');
+function moveJoy(e){const r=joy.getBoundingClientRect(),radius=r.width*.34;let dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2);const m=Math.hypot(dx,dy);if(m>radius){dx=dx/m*radius;dy=dy/m*radius;}joyX=dx/radius;joyY=dy/radius;if(Math.hypot(joyX,joyY)<.13){joyX=0;joyY=0;}stick.style.transform=`translate(${dx}px,${dy}px)`;}
+function stopJoy(){joyX=0;joyY=0;stick.style.transform='translate(0,0)';}
+joy.addEventListener('pointerdown',e=>{e.preventDefault();joy.setPointerCapture(e.pointerId);moveJoy(e)});
+joy.addEventListener('pointermove',e=>{if(joy.hasPointerCapture(e.pointerId)){e.preventDefault();moveJoy(e)}});
+['pointerup','pointercancel','lostpointercapture'].forEach(t=>joy.addEventListener(t,stopJoy));
+fresh(1);state='intro';draw(0);
+})();
+</script></body></html>
