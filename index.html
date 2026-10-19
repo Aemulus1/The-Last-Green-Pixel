@@ -113,7 +113,7 @@ function spawnRed(n,edge=false){for(let i=0;i<n;i++){
  while((Math.hypot(x-player.x,y-player.y)<110||hitWall(x,y,9))&&t<300);
  if(!hitWall(x,y,9))red.push({x,y,v:rand(.35,.85)+level*.07,phase:rand(0,6.3),type:Math.random()<.15?'hunter':'drift',r:5.5});}}
 function spawnBlue(n){for(let i=0;i<n;i++){let x,y,t=0;do{x=rand(30,CW-30);y=rand(30,CH-30);t++}while((Math.hypot(x-player.x,y-player.y)<145||hitWall(x,y,18)||blue.some(b=>Math.hypot(b.x-x,b.y-y)<45))&&t<350);
- if(!hitWall(x,y,18))blue.push({x,y,v:rand(.4,.8)+level*.07,phase:rand(0,6.3),cells:[true,true,true,true],shotTimer:rand(2.5,5.5)});}}
+ if(!hitWall(x,y,18))blue.push({x,y,v:rand(.4,.8)+level*.07,phase:rand(0,6.3),cells:[true,true,true,true],shotTimer:rand(.3,1.0)});}}
 function fireBlaster(){blasterFlash=.14;
  const dx=player.dx,dy=player.dy,px=-dy,py=dx;
  // Four parallel, short-lived lanes, in front of the player.
@@ -122,8 +122,11 @@ function fireBlaster(){blasterFlash=.14;
   shots.push({x:ox+dx*16,y:oy+dy*16,vx:dx*485,vy:dy*485,life:1.7,blast:true});
  }}
 function fresh(l){level=l;player={x:CW/2,y:CH/2,hp:3,inv:1.6,dx:1,dy:0};red=[];blue=[];shots=[];enemyShots=[];sparks=[];fire=0;elapsed=0;blasterFlash=0;waveQueue=0;waveTimer=0;makeWalls(l);navClock=0;
- if(l===8){spawnRed(70);waveQueue=counts(l)-70;waveTimer=5;}else{spawnRed(counts(l));}
- if(l>=4)spawnBlue(l===4?3:l===5?6:l===6?6:l===7?6:l===8?8:l===9?10:12);
+ if(l===8){spawnRed(70);waveQueue=counts(l)-70;waveTimer=5;}
+ else if(l===4){spawnRed(24);}
+ else if(l===5){spawnRed(45);}
+ else{spawnRed(counts(l));}
+ if(l>=2)spawnBlue(l===2?3:l===3?8:l===4?32:l===5?36:l===6?40:l===7?42:l===8?45:l===9?48:55);
  updateHUD();}
 function reset(){fresh(1);state='playing';act.textContent='RESTART';}
 function advance(){if(level>=TOTAL_LEVELS){state='victory';act.textContent='PLAY AGAIN';}else{fresh(level+1);state='playing';act.textContent='RESTART';}}
@@ -151,10 +154,10 @@ function tick(dt){if(state!=='playing')return;elapsed+=dt;player.inv=Math.max(0,
  if(player.inv<=0&&Math.hypot(s.x-player.x,s.y-player.y)<11){enemyShots.splice(i,1);player.hp--;player.inv=1.8;sparksAt(player.x,player.y,'#59ffc5',14);if(player.hp<=0){state='gameover';act.textContent='TRY AGAIN';break;}}
  }
  for(const b of blue){const [vx,vy]=blueNav(b),v=9+b.v*10;
- if(level>=6){b.shotTimer-=dt;if(b.shotTimer<=0){const dd=Math.hypot(player.x-b.x,player.y-b.y)||1;
+ if(level>=3){b.shotTimer-=dt;if(b.shotTimer<=0){const dd=Math.hypot(player.x-b.x,player.y-b.y)||1;
  // Deliberately very slow projectiles, easily visible and avoidable.
  enemyShots.push({x:b.x,y:b.y,vx:(player.x-b.x)/dd*24,vy:(player.y-b.y)/dd*24,life:12});
- b.shotTimer=rand(4.2,7.0);}}moveFree(b,vx*v*dt,vy*v*dt,12);b.x=clamp(b.x,14,CW-14);b.y=clamp(b.y,14,CH-14);if(player.inv<=0&&Math.hypot(player.x-b.x,player.y-b.y)<21){player.hp--;player.inv=1.8;sparksAt(player.x,player.y,'#59ffc5',16);if(player.hp<=0){state='gameover';act.textContent='TRY AGAIN';break;}}}
+ b.shotTimer=1.0;}}moveFree(b,vx*v*dt,vy*v*dt,12);b.x=clamp(b.x,14,CW-14);b.y=clamp(b.y,14,CH-14);if(player.inv<=0&&Math.hypot(player.x-b.x,player.y-b.y)<21){player.hp--;player.inv=1.8;sparksAt(player.x,player.y,'#59ffc5',16);if(player.hp<=0){state='gameover';act.textContent='TRY AGAIN';break;}}}
  for(const e of red){e.phase+=dt*(e.type==='hunter'?1.6:.9);const d=Math.hypot(player.x-e.x,player.y-e.y)||1;const [vx,vy]=pathDirection(e);
 const v=9+e.v*10;moveFree(e,vx*v*dt,vy*v*dt,5);
  e.x=clamp(e.x,6,CW-6);e.y=clamp(e.y,6,CH-6);
