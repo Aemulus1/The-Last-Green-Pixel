@@ -143,6 +143,12 @@ function tick(dt){if(state!=='playing')return;elapsed+=dt;player.inv=Math.max(0,
  else{fire=Math.min(fire,.04);}
  for(let i=shots.length-1;i>=0;i--){const s=shots[i];s.x+=s.vx*dt;s.y+=s.vy*dt;s.life-=dt;if(hitWall(s.x,s.y,3)){shots.splice(i,1);continue;}if(s.life<0||s.x<0||s.x>CW||s.y<0||s.y>CH){shots.splice(i,1);continue;}
  let hit=false;
+ // Green projectiles also destroy incoming orange projectiles on contact.
+ for(let j=enemyShots.length-1;j>=0;j--){const o=enemyShots[j];
+ if(Math.abs(s.x-o.x)<9&&Math.abs(s.y-o.y)<9){
+ sparksAt(o.x,o.y,'#ffad45',7);enemyShots.splice(j,1);shots.splice(i,1);hit=true;break;
+ }}
+ if(hit)continue;
  for(let j=blue.length-1;j>=0;j--){const b=blue[j];const slots=[[-9,-9],[1,-9],[-9,1],[1,1]];for(let k=0;k<4;k++){if(!b.cells[k])continue;const [ox,oy]=slots[k];if(s.x>b.x+ox-3&&s.x<b.x+ox+13&&s.y>b.y+oy-3&&s.y<b.y+oy+13){b.cells[k]=false;sparksAt(b.x+ox+5,b.y+oy+5,'#48aaff',9);shots.splice(i,1);hit=true;if(!b.cells.some(Boolean))blue.splice(j,1);break;}}if(hit)break;}
  if(hit)continue;
  for(let j=red.length-1;j>=0;j--){let e=red[j];if((s.x-e.x)**2+(s.y-e.y)**2<115){sparksAt(e.x,e.y);red.splice(j,1);shots.splice(i,1);hit=true;break;}}if(hit)continue;}
